@@ -29,8 +29,8 @@ WhoisFreaks NRD files ship with full WHOIS data embedded per row — registrant 
 ## Installation
 
 ```bash
-git clone https://github.com/WhoisFreaks/phishing-domain-detector.git
-cd phishing-domain-detector
+git clone https://github.com/WhoisFreaks/wf-python-detect-phishing-domains.git
+cd wf-python-detect-phishing-domains
 pip install -r requirements.txt
 ```
 
@@ -182,7 +182,7 @@ Add a cron job to run the detector every morning:
 ## Project Structure
 
 ```
-phishing-domain-detector/
+wf-python-detect-phishing-domains/
 ├── detector.py        # Main script
 ├── config.py          # Your API key, brands, and settings
 ├── requirements.txt   # Python dependencies
