@@ -59,15 +59,6 @@ NOISE_WORDS = {
     "confirm", "confirmation", "customer", "care", "info",
 }
 
-TLD_PATTERN = re.compile(
-    r'\.(com|net|org|io|co|info|biz|online|site|app|xyz|store|shop|'
-    r'uk|us|ca|au|de|fr|in|pk|eu|me|dev|ai|tech|digital|live|club|'
-    r'pro|vip|top|click|link|email|mail|pay|bank|card|one|fit|icu|'
-    r'top|rentals|bond|ru|cn|jp|br|nl|es|pl|se|no|dk|fi|be|at|ch|'
-    r'nz|sg|hk|tw|kr|mx|ar|za|ng|ke|gh)$',
-    re.IGNORECASE,
-)
-
 LABEL_COLORS = {
     "CRITICAL": "\033[91m",
     "HIGH":     "\033[93m",
@@ -162,13 +153,20 @@ def normalize_domain(domain: str) -> str:
     Strip TLD, separators, digits, and noise words to expose the
     brand-like core of a domain name for fuzzy comparison.
 
+    Uses rsplit to strip the last label generically, which correctly
+    handles both gTLDs (.com, .net) and ccTLDs (.de, .pk, .uk) without
+    needing an allowlist. A regex allowlist would silently miss any TLD
+    not in the list, leaving e.g. ".de" in the normalized string and
+    diluting match scores against brand names.
+
     Examples:
-      "paypa1-secure-verify.com"  →  "paypa"
-      "amaz0n-prime-deal.net"     →  "amzn"
-      "netflix-account-login.io"  →  "netflix"
-      "miconsoftonline.com"       →  "miconsoftline"
+      "paypa1-secure-verify.com"  ->  "paypa"
+      "amaz0n-prime-deal.net"     ->  "amzn"
+      "netflix-account-login.io"  ->  "netflix"
+      "paypal-login.de"           ->  "paypal"  (ccTLD correctly stripped)
     """
-    core  = TLD_PATTERN.sub("", domain.lower())
+    # Strip the rightmost label (TLD) generically -- handles all ccTLDs and gTLDs
+    core  = domain.lower().rsplit(".", 1)[0]
     parts = re.split(r"[-_.]", core)
     parts = [re.sub(r"\d", "", p) for p in parts]   # strip digits within tokens
     parts = [p for p in parts if p and p not in NOISE_WORDS]
@@ -178,7 +176,12 @@ def normalize_domain(domain: str) -> str:
 def score_domain(domain: str) -> tuple[int, str]:
     """Return (best_score 0-100, matched_brand) against all configured brands."""
     normalized = normalize_domain(domain)
-    if not normalized:
+
+    # Reject strings that are too short to be meaningful brand matches.
+    # Digit-heavy domains like "y1288.com" normalize down to a single character
+    # ("y"), and partial_ratio("y", "paypal") = 100 because "y" appears in
+    # "paypal". A 4-character minimum cuts these false positives cleanly.
+    if len(normalized) < 4:
         return 0, ""
 
     best_score, best_brand = 0, ""
@@ -248,10 +251,17 @@ def calculate_risk(c: dict) -> tuple[int, str]:
     Combine similarity score + WHOIS signals into a 0-100 risk score.
 
     Points breakdown:
-      Similarity score     → up to 40 pts  (score × 0.4)
-      Domain very new      → up to 20 pts  (< 7 days = 20, < 30 days = 10)
-      Privacy protection   →      15 pts
-      No registrant name   →       5 pts
+      Similarity score     -> up to 40 pts  (score x 0.4)
+      Domain very new      -> up to 20 pts  (< 7 days = 20, < 30 days = 10)
+      Privacy protection   ->      15 pts
+      No registrant name   ->       5 pts
+      Max possible         =        75 pts
+
+    Labels:
+      CRITICAL  >= 75  (requires near-perfect similarity + new + private)
+      HIGH      >= 60
+      MEDIUM    >= 40
+      LOW        < 40
     """
     pts = int(c["score"] * 0.4)   # similarity → max 40
 
@@ -277,7 +287,7 @@ def calculate_risk(c: dict) -> tuple[int, str]:
 
     risk_score = min(pts, 100)
     label = (
-        "CRITICAL" if risk_score >= 80 else
+        "CRITICAL" if risk_score >= 75 else   # max possible = 40+20+15 = 75
         "HIGH"     if risk_score >= 60 else
         "MEDIUM"   if risk_score >= 40 else
         "LOW"
