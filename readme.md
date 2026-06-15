@@ -2,7 +2,7 @@
 
 A Python tool that detects newly registered domains resembling known brands using the [WhoisFreaks](https://whoisfreaks.com) Newly Registered Domains (NRD) feed.
 
-Every day, attackers register hundreds of lookalike domains — `paypa1-verify.com`, `amaz0n-support.net` — to run phishing campaigns. This tool scans the full daily NRD feed, scores every domain for brand similarity, and flags suspicious ones before they are used in an attack.
+Every day, attackers register hundreds of lookalike domains (`paypa1-verify.com`, `amaz0n-support.net`) to run phishing campaigns. This tool scans the full daily NRD feed, scores every domain for brand similarity, and flags suspicious ones before they are used in an attack.
 
 ## How It Works
 
@@ -19,7 +19,7 @@ Download gTLD + ccTLD NRD files (WHOIS already embedded)
      Print report + save findings.json
 ```
 
-WhoisFreaks NRD files ship with full WHOIS data embedded per row — registrant name, registrar, registration date, nameservers, and domain status. There is no need to call a separate WHOIS API for each domain. One download covers the entire day's global registrations.
+WhoisFreaks NRD files ship with full WHOIS data embedded per row: registrant name, registrar, registration date, nameservers, and domain status. There is no need to call a separate WHOIS API for each domain. One download covers the entire day's global registrations.
 
 ## Requirements
 
@@ -73,6 +73,8 @@ The script will:
 
 ## Sample Output
 
+Domain counts vary by day. The merged gTLD + ccTLD dataset typically runs 300,000 to 400,000 rows, though lighter days occur. The run below is from a smaller day.
+
 ```
 ╔══════════════════════════════════════════════════╗
 ║   WhoisFreaks Phishing Domain Detector           ║
@@ -104,8 +106,8 @@ The script will:
 ══════════════════════════════════════════════════════════════
 
   [CRITICAL]  paypa1-verify-account.com
-    Similarity to 'paypal'  : 88%
-    Risk score              : 91/100
+    Similarity to 'paypal'  : 100%
+    Risk score              : 75/100
     Registered              : 2026-06-06
     Expires                 : 2027-06-06
     Registrar               : Porkbun LLC
@@ -116,11 +118,11 @@ The script will:
 
   [HIGH]  amaz0n-prime-renewal.net
     Similarity to 'amazon'  : 83%
-    Risk score              : 67/100
+    Risk score              : 68/100
     ...
 
 ══════════════════════════════════════════════════════════════
-  Total : 312   CRITICAL: 18   HIGH: 74   MEDIUM: 156   LOW: 64
+  Total : 312   CRITICAL: 18   HIGH: 74   MEDIUM: 220   LOW: 0
 ══════════════════════════════════════════════════════════════
 
   Findings saved -> findings.json  (312 records)
@@ -138,10 +140,12 @@ Each flagged domain gets a risk score from 0 to 100 based on three signals:
 | Privacy-protected registrant | 15 pts |
 | No registrant name at all | 5 pts |
 
+The maximum possible score is 75 (perfect similarity + registered under 7 days + privacy-protected), which is why CRITICAL sits at exactly 75: it requires all three signals at full strength.
+
 | Label | Score range |
 |---|---|
-| CRITICAL | 80 - 100 |
-| HIGH | 60 - 79 |
+| CRITICAL | 75 |
+| HIGH | 60 - 74 |
 | MEDIUM | 40 - 59 |
 | LOW | 0 - 39 |
 
@@ -153,8 +157,8 @@ All flagged domains are saved to `findings.json` in the working directory. Each 
 {
   "domain": "paypa1-verify-account.com",
   "matched_brand": "paypal",
-  "score": 88,
-  "risk_score": 91,
+  "score": 100,
+  "risk_score": 75,
   "risk_label": "CRITICAL",
   "create_date": "2026-06-06",
   "expiry_date": "2027-06-06",
